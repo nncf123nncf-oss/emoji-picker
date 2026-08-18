@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>絵文字ピッカー</title>
+<style>
+  :root {
+    --bg: #FFF8E1;
+    --surface: #FFFFFF;
+    --text-main: #2B2B2E;
+    --text-sub: #6B6B72;
+    --accent: #1E9E6B;
+    --danger: #D93025;
+    --border: #F0E4B8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  header h1 {
+    font-size: 18px;
+    margin: 0 0 4px 0;
+  }
+  header p {
+    font-size: 14px;
+    color: var(--text-sub);
+    margin: 0 0 16px 0;
+  }
+  .row {
+    margin-bottom: 12px;
+  }
+  input[type="text"],
+  select {
+    width: 100%;
+    min-height: 44px;
+    font-size: 15px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-main);
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  input[type="text"]:focus,
+  select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  #status {
+    min-height: 24px;
+    font-size: 14px;
+    line-height: 24px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #status.ok { color: var(--accent); }
+  #status.err { color: var(--danger); }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: 8px;
+  }
+  .emoji-btn {
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 22px;
+    line-height: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .emoji-btn:hover {
+    border-color: var(--accent);
+  }
+  .emoji-btn:active {
+    background: var(--border);
+  }
+  #empty {
+    font-size: 14px;
+    color: var(--text-sub);
+    padding: 16px 0;
+    display: none;
+  }
+  #count {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin-top: 16px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>絵文字ピッカー</h1>
+    <p>検索するか、カテゴリを選んでクリックでコピーできます。</p>
+  </header>
+
+  <div class="row">
+    <input type="text" id="search" placeholder="例: 笑う、ねこ、ハート" aria-label="絵文字をキーワードで検索">
+  </div>
+
+  <div class="row">
+    <select id="category" aria-label="カテゴリを選択"></select>
+  </div>
+
+  <div id="status" aria-live="polite"></div>
+
+  <div id="grid"></div>
+  <p id="empty">見つかりませんでした。別のキーワードでお試しください。</p>
+  <p id="count"></p>
+</div>
+
+<script>
+(function () {
+  // カテゴリ名・絵文字・日本語ラベル（検索用）の組
+  var CATEGORIES = [
+    { key: "face", name: "顔・表情", items: [
+      ["😀","にっこり"],["😃","にこにこ"],["😄","わははは 笑う"],["😁","にっこり歯"],["😆","大笑い 笑う"],
+      ["😅","汗笑い"],["🤣","大爆笑"],["😂","笑い泣き"],["🙂","微笑み"],["🙃","逆さ笑顔"],
+      ["😉","ウインク"],["😊","はにかみ"],["😇","天使"],["🥰","うっとり"],["😍","ハート目"],
+      ["🤩","スター目"],["😘","キス"],["😗","キス顔"],["☺️","笑顔"],["😚","キス閉じ目"],
+      ["😙","キス笑顔"],["🥲","涙微笑"],["😋","味わう"],["😛","ペロッ"],["😜","ウインクペロ"],
+      ["🤪","おどけ"],["😝","ぎゅっとペロ"],["🤑","お金目"],["🤗","ハグ"],["🤭","口押さえ"],
+      ["🤫","しー"],["🤔","考え中"],["🤐","チャック口"],["🤨","疑い眉"],["😐","無表情"],
+      ["😑","感情なし"],["😶","無言"],["😏","にやり"],["😒","うんざり"],["🙄","白目"],
+      ["😬","苦笑い"],["🤥","嘘つき"],["😌","安堵"],["😔","しょんぼり"],["😪","眠い"],
+      ["🤤","よだれ"],["😴","熟睡"],["😷","マスク"],["🤒","熱"],["🤕","けが"],
+      ["🤢","気持ち悪い"],["🤮","嘔吐"],["🤧","くしゃみ"],["🥵","暑い"],["🥶","寒い"],
+      ["🥴","ふらふら"],["😵","目回り"],["🤯","頭爆発"],["🤠","カウボーイ"],["🥳","パーティー"],
+      ["😎","サングラス"],["🤓","メガネ"],["🧐","モノクル"],["😕","微妙"],["🙁","やや不満"],
+      ["☹️","不満"],["😮","驚き口開き"],["😯","びっくり無音"],["😲","びっくり大"],["😳","動揺"],
+      ["🥺","お願い顔"],["😦","苦悩"],["😧","苦痛"],["😨","恐怖"],["😰","冷や汗"],
+      ["😥","悲しい汗"],["😢","泣き"],["😭","号泣"],["😱","絶叫"],["😖","苦しい"],
+      ["😣","我慢"],["😞","落胆"],["😓","焦り汗"],["😩","疲労"],["😫","うんざり疲れ"],
+      ["🥱","あくび"],["😤","怒り鼻息"],["😡","激怒"],["😠","怒り"],["🤬","罵り"],
+      ["😈","悪魔笑顔"],["👿","悪魔怒り"],["💀","ガイコツ"],["☠️","骸骨マーク"]
+    ]},
+    { key: "gesture", name: "ジェスチャー・体", items: [
+      ["👋","手を振る"],["🤚","手のひら"],["🖐️","指を開いた手"],["✋","手を止める"],["🖖","バルカン"],
+      ["👌","OK"],["🤌","つまむ"],["🤏","少しだけ"],["✌️","ピース"],["🤞","指を交差"],
+      ["🫰","指ハート"],["🤟","愛してる手"],["🤘","ロック"],["🤙","電話"],["👈","左を指す"],
+      ["👉","右を指す"],["👆","上を指す"],["🖕","中指"],["👇","下を指す"],["☝️","注意"],
+      ["👍","いいね"],["👎","だめ"],["✊","握りこぶし"],["👊","パンチ"],["🤛","左パンチ"],
+      ["🤜","右パンチ"],["👏","拍手"],["🙌","バンザイ"],["👐","両手を開く"],["🤲","お願い"],
+      ["🤝","握手"],["🙏","お願い合掌"],["✍️","書く"],["💅","ネイル"],["🤳","自撮り"],
+      ["💪","力こぶ"],["🦾","義手"],["🦵","足"],["🦶","足裏"],["👂","耳"],
+      ["🦻","補聴器"],["👃","鼻"],["🧠","脳"],["🫀","心臓"],["🫁","肺"],
+      ["🦷","歯"],["🦴","骨"],["👀","目"],["👁️","片目"],["👅","舌"],
+      ["👄","口"],["🫦","唇をかむ"],["👶","赤ちゃん"],["🧒","子ども"],["👦","男の子"],
+      ["👧","女の子"],["🧑","大人"],["👨","男性"],["👩","女性"],["🧓","高齢者"]
+    ]},
+    { key: "animal", name: "動物・自然", items: [
+      ["🐶","犬 いぬ"],["🐱","猫 ねこ"],["🐭","ねずみ"],["🐹","ハムスター"],["🐰","うさぎ"],
+      ["🦊","きつね"],["🐻","くま"],["🐼","パンダ"],["🐨","コアラ"],["🐯","とら"],
+      ["🦁","ライオン"],["🐮","牛"],["🐷","ぶた"],["🐸","かえる"],["🐵","さる"],
+      ["🐔","にわとり"],["🐧","ペンギン"],["🐦","小鳥"],["🐤","ひよこ"],["🦆","かも"],
+      ["🦅","わし"],["🦉","ふくろう"],["🦇","こうもり"],["🐺","おおかみ"],["🐗","いのしし"],
+      ["🐴","うま"],["🦄","ユニコーン"],["🐝","はち"],["🐛","いもむし"],["🦋","ちょうちょ"],
+      ["🐌","かたつむり"],["🐞","てんとう虫"],["🐢","かめ"],["🐍","へび"],["🐙","たこ"],
+      ["🦑","いか"],["🦀","かに"],["🐠","魚"],["🐬","いるか"],["🐳","くじら"],
+      ["🦈","さめ"],["🐊","わに"],["🌸","桜"],["🌼","花"],["🌻","ひまわり"],
+      ["🌹","バラ"],["🌷","チューリップ"],["🍀","四葉のクローバー"],["🌳","木"],["🌵","サボテン"],
+      ["🍁","もみじ"],["🍄","きのこ"],["🌊","波"],["⭐","星"],["🌈","虹"],
+      ["☀️","太陽"],["🌙","月"],["☁️","雲"],["❄️","雪"],["🔥","火"]
+    ]},
+    { key: "food", name: "食べ物・飲み物", items: [
+      ["🍎","りんご"],["🍊","みかん"],["🍋","レモン"],["🍌","バナナ"],["🍇","ぶどう"],
+      ["🍓","いちご"],["🍈","メロン"],["🍒","さくらんぼ"],["🍑","もも"],["🍍","パイナップル"],
+      ["🥝","キウイ"],["🍅","トマト"],["🥑","アボカド"],["🥦","ブロッコリー"],["🥕","にんじん"],
+      ["🌽","とうもろこし"],["🍞","パン"],["🥐","クロワッサン"],["🧀","チーズ"],["🍳","卵料理"],
+      ["🥓","ベーコン"],["🍔","ハンバーガー"],["🍟","ポテト"],["🍕","ピザ"],["🌭","ホットドッグ"],
+      ["🥪","サンドイッチ"],["🌮","タコス"],["🍜","ラーメン"],["🍣","寿司"],["🍱","弁当"],
+      ["🍙","おにぎり"],["🍚","ごはん"],["🍛","カレー"],["🍦","ソフトクリーム"],["🍩","ドーナツ"],
+      ["🍪","クッキー"],["🎂","ケーキ"],["🍫","チョコレート"],["🍬","キャンディ"],["🍭","キャンディ棒"],
+      ["🍯","はちみつ"],["☕","コーヒー"],["🍵","お茶"],["🥤","ジュース"],["🍺","ビール"],
+      ["🍷","ワイン"],["🍶","日本酒"],["🥂","乾杯"],["🍾","シャンパン"],["🧋","タピオカ"],
+      ["🍡","団子"],["🍥","なると"],["🍢","おでん"],["🥮","月餅"],["🍠","焼き芋"]
+    ]},
+    { key: "activity", name: "活動・移動", items: [
+      ["⚽","サッカー"],["🏀","バスケ"],["🏈","アメフト"],["⚾","野球"],["🎾","テニス"],
+      ["🏐","バレー"],["🏓","卓球"],["🏸","バドミントン"],["🥊","ボクシング"],["🎳","ボウリング"],
+      ["⛳","ゴルフ"],["🎣","釣り"],["🏊","水泳"],["🚴","サイクリング"],["🏃","走る"],
+      ["🧘","ヨガ"],["🎮","ゲーム"],["🎲","サイコロ"],["🎯","ダーツ"],["🎨","絵"],
+      ["🎵","音楽"],["🎤","マイク"],["🎬","映画"],["📚","本"],["✏️","鉛筆"],
+      ["🚗","車"],["🚕","タクシー"],["🚌","バス"],["🚆","電車"],["🚲","自転車"],
+      ["✈️","飛行機"],["🚀","ロケット"],["⛵","ヨット"],["🚢","船"],["🏠","家"],
+      ["🏢","ビル"],["🏫","学校"],["🏥","病院"],["🏝️","島"],["🗻","富士山"]
+    ]},
+    { key: "object", name: "物・道具", items: [
+      ["💻","パソコン"],["⌨️","キーボード"],["🖱️","マウス"],["🖥️","デスクトップ"],["📱","スマホ"],
+      ["☎️","電話"],["📷","カメラ"],["🔋","バッテリー"],["💡","ひらめき"],["🔦","ライト"],
+      ["🕯️","キャンドル"],["📖","開いた本"],["📝","メモ"],["📌","ピン"],["📎","クリップ"],
+      ["✂️","はさみ"],["🔒","鍵かけ"],["🔑","鍵"],["🔨","ハンマー"],["🧰","工具箱"],
+      ["⚙️","歯車"],["🧲","磁石"],["💰","お金"],["💳","カード"],["💎","ダイヤ"],
+      ["🎁","プレゼント"],["🎈","風船"],["🎉","くす玉"],["🎊","紙吹雪"],["🎀","リボン"],
+      ["👑","王冠"],["👓","めがね"],["🕶️","サングラス"],["👜","バッグ"],["👟","スニーカー"],
+      ["👕","シャツ"],["👗","ドレス"],["☂️","傘"],["🧳","スーツケース"],["⏰","時計"]
+    ]},
+    { key: "symbol", name: "記号・マーク", items: [
+      ["❤️","ハート"],["🧡","オレンジハート"],["💛","黄ハート"],["💚","緑ハート"],["💙","青ハート"],
+      ["💜","紫ハート"],["🖤","黒ハート"],["🤍","白ハート"],["🤎","茶ハート"],["💔","失恋"],
+      ["❣️","感嘆ハート"],["💕","2つのハート"],["💞","回るハート"],["💓","高鳴るハート"],["💗","広がるハート"],
+      ["💖","きらめくハート"],["💘","キューピッドハート"],["💝","リボンハート"],["✨","きらきら"],["⭐","星印"],
+      ["🌟","流れ星"],["💫","めまい星"],["✅","チェック"],["❌","バツ"],["❓","疑問"],
+      ["❗","感嘆"],["⚠️","警告"],["🚫","禁止"],["♻️","リサイクル"],["🔞","年齢制限"],
+      ["🆗","OK"],["🆕","NEW"],["🆓","無料"],["🈴","合格"],["㊗️","祝"],
+      ["㊙️","秘"],["🔰","初心者"],["Ⓜ️","M"],["🅿️","P"],["♨️","温泉"]
+    ]},
+    { key: "flag", name: "旗", items: [
+      ["🇯🇵","日本"],["🇺🇸","アメリカ"],["🇬🇧","イギリス"],["🇫🇷","フランス"],["🇩🇪","ドイツ"],
+      ["🇮🇹","イタリア"],["🇰🇷","韓国"],["🇨🇳","中国"],["🇮🇳","インド"],["🇧🇷","ブラジル"],
+      ["🇨🇦","カナダ"],["🇦🇺","オーストラリア"],["🇪🇸","スペイン"],["🇹🇭","タイ"],["🏳️","白旗"],
+      ["🏴","黒旗"],["🏁","チェッカー旗"],["🚩","三角旗"],["🎌","交差する旗"],["🏳️‍🌈","レインボー旗"]
+    ]}
+  ];
+
+  var searchInput = document.getElementById("search");
+  var categorySelect = document.getElementById("category");
+  var statusEl = document.getElementById("status");
+  var gridEl = document.getElementById("grid");
+  var emptyEl = document.getElementById("empty");
+  var countEl = document.getElementById("count");
+  var statusTimer = null;
+
+  // カテゴリ選択肢を作る
+  CATEGORIES.forEach(function (cat) {
+    var opt = document.createElement("option");
+    opt.value = cat.key;
+    opt.textContent = cat.name + "（" + cat.items.length + "個）";
+    categorySelect.appendChild(opt);
+  });
+
+  var totalCount = CATEGORIES.reduce(function (sum, c) { return sum + c.items.length; }, 0);
+  countEl.textContent = "内蔵絵文字: " + totalCount + "個";
+
+  function renderGrid(items) {
+    gridEl.innerHTML = "";
+    if (items.length === 0) {
+      emptyEl.style.display = "block";
+      return;
+    }
+    emptyEl.style.display = "none";
+    items.forEach(function (pair) {
+      var emoji = pair[0];
+      var label = pair[1];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-btn";
+      btn.textContent = emoji;
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+      btn.addEventListener("click", function () {
+        copyToClipboard(emoji, label);
+      });
+      gridEl.appendChild(btn);
+    });
+  }
+
+  function showStatus(text, ok) {
+    if (statusTimer) { clearTimeout(statusTimer); }
+    statusEl.textContent = text;
+    statusEl.className = ok ? "ok" : "err";
+    statusTimer = setTimeout(function () {
+      statusEl.textContent = "";
+      statusEl.className = "";
+    }, 2500);
+  }
+
+  function copyToClipboard(emoji, label) {
+    function onSuccess() {
+      showStatus(emoji + " をコピーしました（" + label + "）", true);
+    }
+    function onFail() {
+      showStatus("コピーできませんでした", false);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(emoji).then(onSuccess, function () {
+        fallbackCopy(emoji, onSuccess, onFail);
+      });
+    } else {
+      fallbackCopy(emoji, onSuccess, onFail);
+    }
+  }
+
+  function fallbackCopy(text, onSuccess, onFail) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) { onSuccess(); } else { onFail(); }
+    } catch (e) {
+      onFail();
+    }
+  }
+
+  function applyFilter() {
+    var keyword = searchInput.value.trim();
+    if (keyword.length > 0) {
+      var result = [];
+      CATEGORIES.forEach(function (cat) {
+        cat.items.forEach(function (pair) {
+          if (pair[1].toLowerCase().indexOf(keyword.toLowerCase()) !== -1) {
+            result.push(pair);
+          }
+        });
+      });
+      renderGrid(result);
+    } else {
+      var selected = CATEGORIES.filter(function (c) { return c.key === categorySelect.value; })[0];
+      renderGrid(selected ? selected.items : []);
+    }
+  }
+
+  searchInput.addEventListener("input", applyFilter);
+  categorySelect.addEventListener("change", applyFilter);
+
+  // 初期表示
+  categorySelect.value = CATEGORIES[0].key;
+  applyFilter();
+})();
+</script>
+</body>
+</html>
